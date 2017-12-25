@@ -84,7 +84,7 @@ In order to make FreeIPA work properly behind a load-balancer we'll have to make
     RewriteRule ^/ipa/(.*)      http://ldap01.example.com/ipa/$1 [L,R=301]
 
     add the following line:
-    (the referer should matches the fqdn of the IPA serevr you are working on) so for ldap01.example.com we use:
+    (the referer should match the fqdn of the IPA serevr you are working on) so for ldap01.example.com we use:
     RequestHeader edit Referer ^https://ldap\.example\.com/ https://ldap01.example.com/
     while on ldap02.example.com we use:
     RequestHeader edit Referer ^https://ldap\.example\.com/ https://ldap02.example.com/
