@@ -1,0 +1,164 @@
+admin:
+  access_log_path: /var/log/envoy/envoy_admin.log
+  address: tcp://127.0.0.1:9901
+
+listeners:
+  - name: http_redirect
+    address: tcp://10.0.0.100:80
+    bind_to_port: True
+    filters:
+      - name: http_connection_manager
+        config:
+          server_name: ldap.example.com
+          codec_type: auto
+          stat_prefix: ingress_http
+          route_config:
+            virtual_hosts:
+              - name: http_redirect
+                domains: ['*.example.com']
+                require_ssl: all
+                routes: []
+          access_log:
+            - path: /var/log/envoy/http.log
+          filters:
+            - type: decoder
+              name: router
+              config: {}
+
+  - name: web_https_connection_manager
+    address: tcp://10.0.0.100:443
+    bind_to_port: True
+    ssl_context:
+      cert_chain_file: /etc/envoy/certs/ldap_example_com_chain.crt
+      private_key_file: /etc/envoy/certs/ldap_example_com.key
+      ca_cert_file: /etc/ssl/certs/ca-certificates.crt
+    filters:
+      - name: http_connection_manager
+        config:
+          server_name: ldap.example.com
+          use_remote_address: True
+          codec_type: auto
+          stat_prefix: ingress_https
+          route_config:
+            virtual_hosts:
+              - name: backend
+                domains: ['*.example.com']
+                routes:
+                  - path: /
+                    path_redirect: /ipa/ui
+
+                  - prefix: /ipa
+                    cluster: ipa_web
+          access_log:
+            - path: /var/log/envoy/https.log
+          filters:
+            - type: decoder
+              name: router
+              config: {}
+
+  - name: ldap_connection_manager
+    address: tcp://10.0.0.100:389
+    bind_to_port: True
+    filters:
+      - name: tcp_proxy
+        config:
+          stat_prefix: ingress_ldap
+          route_config:
+            routes:
+              - cluster: ldap
+          access_log:
+            - path: /var/log/envoy/ldap.log
+
+  - name: ldaps_connection_manager
+    address: tcp://10.0.0.100:636
+    bind_to_port: True
+    ssl_context:
+      cert_chain_file: /etc/envoy/certs/ldap_example_com_chain.crt
+      private_key_file: /etc/envoy/certs/ldap_example_com.key
+      ca_cert_file: /etc/ssl/certs/ca-certificates.crt
+    filters:
+      - name: tcp_proxy
+        config:
+          stat_prefix: ingress_ldaps
+          route_config:
+            routes:
+              - cluster: ldaps
+          access_log:
+            - path: /var/log/envoy/ldaps.log
+
+  - name: krb_connection_manager
+    address: tcp://10.0.0.100:88
+    bind_to_port: True
+    filters:
+      - name: tcp_proxy
+        config:
+          stat_prefix: ingress_krb
+          route_config:
+            routes:
+              - cluster: krb
+          access_log:
+            - path: /var/log/envoy/krb.log
+
+  - name: krb_passwd_connection_manager
+    address: tcp://10.0.0.100:464
+    bind_to_port: True
+    filters:
+      - name: tcp_proxy
+        config:
+          stat_prefix: ingress_krb_passwd
+          route_config:
+            routes:
+              - cluster: krb_passwd
+          access_log:
+            - path: /var/log/envoy/krb_passwd.log
+
+cluster_manager:
+  clusters:
+    - name: ipa_web
+      type: strict_dns
+      connect_timeout_ms: 250
+      lb_type: least_request
+      hosts:
+        - url: tcp://ldap01.example.com:443
+        - url: tcp://ldap02.example.com:443
+      ssl_context:
+        cert_chain_file: /etc/envoy/certs/ldap_example_com_chain.crt
+        private_key_file: /etc/envoy/certs/ldap_example_com.key
+        ca_cert_file: /etc/ssl/certs/ca-certificates.crt
+
+    - name: ldap
+      type: strict_dns
+      connect_timeout_ms: 250
+      lb_type: least_request
+      hosts:
+        - url: tcp://ldap01.example.com:389
+        - url: tcp://ldap02.example.com:389
+
+    - name: ldaps
+      type: strict_dns
+      connect_timeout_ms: 250
+      lb_type: least_request
+      hosts:
+        - url: tcp://ldap01.example.com:636
+        - url: tcp://ldap02.example.com:636
+      ssl_context:
+        cert_chain_file: /etc/envoy/certs/ldap_example_com.crt
+        private_key_file: /etc/envoy/certs/ldap_example_com.key
+        ca_cert_file: /etc/ssl/certs/ca-certificates.crt
+
+    - name: krb
+      type: strict_dns
+      connect_timeout_ms: 250
+      lb_type: least_request
+      hosts:
+        - url: tcp://ldap01.example.com:88
+        - url: tcp://ldap02.example.com:88
+
+    - name: krb_passwd
+      type: strict_dns
+      connect_timeout_ms: 250
+      lb_type: least_request
+      hosts:
+        - url: tcp://ldap01.example.com:464
+        - url: tcp://ldap02.example.com:464
+
